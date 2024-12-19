@@ -1,5 +1,6 @@
 use alloc::sync::Arc;
 use core::sync::atomic::AtomicU64;
+use memory_addr::VirtAddr;
 
 use axhal::arch::UspaceContext;
 use axmm::AddrSpace;
@@ -20,15 +21,25 @@ pub struct TaskExt {
     pub uctx: UspaceContext,
     /// The virtual memory address space.
     pub aspace: Arc<Mutex<AddrSpace>>,
+    /// The start position of the program break.
+    pub break_start: VirtAddr,
+    /// The current position of the program break.
+    pub break_pos: Mutex<VirtAddr>,
 }
 
 impl TaskExt {
-    pub const fn new(uctx: UspaceContext, aspace: Arc<Mutex<AddrSpace>>) -> Self {
+    pub const fn new(
+        uctx: UspaceContext,
+        aspace: Arc<Mutex<AddrSpace>>,
+        break_start: VirtAddr,
+    ) -> Self {
         Self {
             proc_id: 233,
             uctx,
             clear_child_tid: AtomicU64::new(0),
             aspace,
+            break_start,
+            break_pos: Mutex::new(break_start),
         }
     }
 
@@ -45,7 +56,11 @@ impl TaskExt {
 
 axtask::def_task_ext!(TaskExt);
 
-pub fn spawn_user_task(aspace: Arc<Mutex<AddrSpace>>, uctx: UspaceContext) -> AxTaskRef {
+pub fn spawn_user_task(
+    aspace: Arc<Mutex<AddrSpace>>,
+    uctx: UspaceContext,
+    break_start: VirtAddr,
+) -> AxTaskRef {
     let mut task = TaskInner::new(
         || {
             let curr = axtask::current();
@@ -58,11 +73,11 @@ pub fn spawn_user_task(aspace: Arc<Mutex<AddrSpace>>, uctx: UspaceContext) -> Ax
             );
             unsafe { curr.task_ext().uctx.enter_uspace(kstack_top) };
         },
-        "userboot".into(),
+        "[usertask]".into(),
         crate::config::KERNEL_STACK_SIZE,
     );
     task.ctx_mut()
         .set_page_table_root(aspace.lock().page_table_root());
-    task.init_task_ext(TaskExt::new(uctx, aspace));
+    task.init_task_ext(TaskExt::new(uctx, aspace, break_start));
     axtask::spawn_task(task)
 }

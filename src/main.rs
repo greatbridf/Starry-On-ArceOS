@@ -62,12 +62,13 @@ fn main() {
         let args = vec![];
         let envs = vec![];
 
-        let (entry_vaddr, ustack_top, uspace) = mm::load_user_app(String::from(name), args, envs)
+        let user_app = mm::load_user_app(String::from(name), args, envs)
             .expect("Testcase executable not found");
 
         let user_task = task::spawn_user_task(
-            Arc::new(Mutex::new(uspace)),
-            UspaceContext::new(entry_vaddr.into(), ustack_top, 2333),
+            Arc::new(Mutex::new(user_app.aspace)),
+            UspaceContext::new(user_app.entry.as_usize(), user_app.sp, 2333),
+            user_app.break_pos,
         );
 
         let exit_code = user_task.join();
@@ -75,7 +76,7 @@ fn main() {
 
         match exit_code {
             Some(n) if n != 0 => break,
-            _ => {},
+            _ => {}
         }
     }
 }

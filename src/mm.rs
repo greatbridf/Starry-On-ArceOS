@@ -12,21 +12,23 @@ use axhal::{
 use axmm::AddrSpace;
 use axstd::{fs, io::Read};
 use axtask::TaskExtRef;
-use memory_addr::VirtAddr;
+use memory_addr::{MemoryAddr, VirtAddr};
 
 use crate::{config, loader};
 
+pub struct UserApp {
+    /// The entry point of the user app.
+    pub entry: VirtAddr,
+    /// The top of the user stack.
+    pub sp: VirtAddr,
+    /// The program break position.
+    pub break_pos: VirtAddr,
+    /// The address space of the user app.
+    pub aspace: AddrSpace,
+}
+
 /// Load a user app.
-///
-/// # Returns
-/// - The first return value is the entry point of the user app.
-/// - The second return value is the top of the user stack.
-/// - The third return value is the address space of the user app.
-pub fn load_user_app(
-    name: String,
-    args: Vec<String>,
-    envs: Vec<String>,
-) -> AxResult<(VirtAddr, VirtAddr, AddrSpace)> {
+pub fn load_user_app(name: String, args: Vec<String>, envs: Vec<String>) -> AxResult<UserApp> {
     // TODO: Check shebang.
     if name.ends_with(".sh") {
         let args = [vec![String::from("busybox"), String::from("sh")], args].concat();
@@ -41,23 +43,33 @@ pub fn load_user_app(
         config::USER_SPACE_SIZE,
     )?;
     let elf_info = loader::load_elf(&elf_data, uspace.base());
-    for segement in elf_info.segments {
+    for segment in elf_info.segments.iter() {
         debug!(
             "Mapping ELF segment: [{:#x?}, {:#x?}) flags: {:#x?}",
-            segement.start_vaddr,
-            segement.start_vaddr + segement.size,
-            segement.flags
+            segment.start_vaddr,
+            segment.start_vaddr + segment.size,
+            segment.flags
         );
-        uspace.map_alloc(segement.start_vaddr, segement.size, segement.flags, true)?;
+        uspace.map_alloc(segment.start_vaddr, segment.size, segment.flags, true)?;
 
-        if segement.data.is_empty() {
+        if segment.data.is_empty() {
             continue;
         }
 
-        uspace.write(segement.start_vaddr + segement.offset, segement.data)?;
+        uspace.write(segment.start_vaddr + segment.offset, segment.data)?;
 
         // TDOO: flush the I-cache
     }
+
+    let break_pos = elf_info
+        .segments
+        .iter()
+        .fold(VirtAddr::from_usize(0), |cur, seg| {
+            let end = seg.start_vaddr + seg.size;
+            let end = end.align_up_4k();
+
+            cur.max(end)
+        });
 
     // The user stack is divided into two parts:
     // `ustack_start` -> `ustack_pointer`: It is the stack space that users actually read and write.
@@ -86,7 +98,12 @@ pub fn load_user_app(
     )?;
 
     uspace.write(VirtAddr::from_usize(ustack_pointer), stack_data.as_slice())?;
-    Ok((elf_info.entry, VirtAddr::from(ustack_pointer), uspace))
+    Ok(UserApp {
+        entry: elf_info.entry,
+        sp: VirtAddr::from(ustack_pointer),
+        break_pos,
+        aspace: uspace,
+    })
 }
 
 #[register_trap_handler(PAGE_FAULT)]
