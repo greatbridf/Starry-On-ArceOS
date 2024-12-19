@@ -66,7 +66,7 @@ pub(crate) fn list_apps() {
 }
 
 /// The segment of the elf file, which is used to map the elf file to the memory space
-pub struct ELFSegment {
+pub struct ELFSegment<'a> {
     /// The start virtual address of the segment
     pub start_vaddr: VirtAddr,
     /// The size of the segment
@@ -74,17 +74,17 @@ pub struct ELFSegment {
     /// The flags of the segment which is used to set the page table entry
     pub flags: MappingFlags,
     /// The data of the segment
-    pub data: &'static [u8],
+    pub data: &'a [u8],
     /// The offset of the segment relative to the start of the page
     pub offset: usize,
 }
 
 /// The information of a given ELF file
-pub struct ELFInfo {
+pub struct ELFInfo<'a> {
     /// The entry point of the ELF file
     pub entry: VirtAddr,
     /// The segments of the ELF file
-    pub segments: Vec<ELFSegment>,
+    pub segments: Vec<ELFSegment<'a>>,
     /// The auxiliary vectors of the ELF file
     pub auxv: BTreeMap<u8, usize>,
 }
@@ -98,17 +98,12 @@ pub struct ELFInfo {
 ///
 /// # Returns
 /// Entry and information about segments of the given ELF file
-pub(crate) fn load_elf(name: &str, base_addr: VirtAddr) -> ELFInfo {
+pub(crate) fn load_elf(elf_data: &[u8], base_addr: VirtAddr) -> ELFInfo<'_> {
     use xmas_elf::program::{Flags, SegmentData};
     use xmas_elf::{header, ElfFile};
 
-    let elf = ElfFile::new(
-        get_app_data_by_name(name).unwrap_or_else(|| panic!("failed to get app: {}", name)),
-    )
-    .expect("invalid ELF file");
-    let elf_header = elf.header;
-
-    assert_eq!(elf_header.pt1.magic, *b"\x7fELF", "invalid elf!");
+    let elf = ElfFile::new(elf_data).expect("Invalid ELF file format");
+    assert_eq!(elf.header.pt1.magic, *b"\x7fELF", "invalid elf!");
 
     let expect_arch = if cfg!(target_arch = "x86_64") {
         header::Machine::X86_64

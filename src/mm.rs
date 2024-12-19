@@ -1,4 +1,8 @@
-use alloc::string::ToString;
+use alloc::{
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
 
 use axerrno::AxResult;
 use axhal::{
@@ -6,6 +10,7 @@ use axhal::{
     trap::{register_trap_handler, PAGE_FAULT},
 };
 use axmm::AddrSpace;
+use axstd::{fs, io::Read};
 use axtask::TaskExtRef;
 use memory_addr::VirtAddr;
 
@@ -17,12 +22,25 @@ use crate::{config, loader};
 /// - The first return value is the entry point of the user app.
 /// - The second return value is the top of the user stack.
 /// - The third return value is the address space of the user app.
-pub fn load_user_app(app_name: &str) -> AxResult<(VirtAddr, VirtAddr, AddrSpace)> {
+pub fn load_user_app(
+    name: String,
+    args: Vec<String>,
+    envs: Vec<String>,
+) -> AxResult<(VirtAddr, VirtAddr, AddrSpace)> {
+    // TODO: Check shebang.
+    if name.ends_with(".sh") {
+        let args = [vec![String::from("busybox"), String::from("sh")], args].concat();
+        return load_user_app(String::from("busybox"), args, envs);
+    }
+
+    let mut elf_data = vec![];
+    fs::File::open(&name)?.read_to_end(&mut elf_data)?;
+
     let mut uspace = axmm::new_user_aspace(
         VirtAddr::from_usize(config::USER_SPACE_BASE),
         config::USER_SPACE_SIZE,
     )?;
-    let elf_info = loader::load_elf(app_name, uspace.base());
+    let elf_info = loader::load_elf(&elf_data, uspace.base());
     for segement in elf_info.segments {
         debug!(
             "Mapping ELF segment: [{:#x?}, {:#x?}) flags: {:#x?}",
@@ -54,7 +72,7 @@ pub fn load_user_app(app_name: &str) -> AxResult<(VirtAddr, VirtAddr, AddrSpace)
     );
     // FIXME: Add more arguments and environment variables
     let (stack_data, ustack_pointer) = kernel_elf_parser::get_app_stack_region(
-        &[app_name.to_string()],
+        core::slice::from_ref(&name),
         &[],
         &elf_info.auxv,
         ustack_start,

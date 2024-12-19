@@ -16,26 +16,66 @@ mod mm;
 mod syscall_imp;
 mod task;
 
-use alloc::sync::Arc;
+use alloc::vec;
+use alloc::{string::String, sync::Arc};
 
 use axhal::arch::UspaceContext;
 use axsync::Mutex;
 
 #[no_mangle]
 fn main() {
-    loader::list_apps();
-    let testcases = option_env!("AX_TESTCASES_LIST")
-        .unwrap_or_else(|| "Please specify the testcases list by making user_apps")
-        .split(',')
-        .filter(|&x| !x.is_empty());
-    for testcase in testcases {
-        info!("Running testcase: {}", testcase);
-        let (entry_vaddr, ustack_top, uspace) = mm::load_user_app(testcase).unwrap();
+    let names = [
+        "brk",
+        "chdir",
+        "clone",
+        "close",
+        "dup2",
+        "dup",
+        "execve",
+        "exit",
+        "fork",
+        "fstat",
+        "getcwd",
+        "getdents",
+        "getpid",
+        "getppid",
+        "gettimeofday",
+        "mkdir_",
+        "mmap",
+        "mount",
+        "munmap",
+        "openat",
+        "open",
+        "pipe",
+        "read",
+        "times",
+        "umount",
+        "uname",
+        "unlink",
+        "wait",
+        "waitpid",
+        "write",
+        "yield",
+    ];
+
+    for name in names.into_iter() {
+        let args = vec![];
+        let envs = vec![];
+
+        let (entry_vaddr, ustack_top, uspace) = mm::load_user_app(String::from(name), args, envs)
+            .expect("Testcase executable not found");
+
         let user_task = task::spawn_user_task(
             Arc::new(Mutex::new(uspace)),
             UspaceContext::new(entry_vaddr.into(), ustack_top, 2333),
         );
+
         let exit_code = user_task.join();
-        info!("User task {} exited with code: {:?}", testcase, exit_code);
+        info!("{name} exited with code: {:?}", exit_code);
+
+        match exit_code {
+            Some(n) if n != 0 => break,
+            _ => {},
+        }
     }
 }
