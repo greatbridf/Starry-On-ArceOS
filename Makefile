@@ -22,7 +22,7 @@ user_apps:
 test:
 	@./scripts/app_test.sh
 
-build run justrun debug disasm: ax_root
+build run justrun justdebugrun debug disasm: ax_root
 	@make -C $(AX_ROOT) A=$(PWD) $@
 
 clean: ax_root
@@ -32,4 +32,4 @@ clean: ax_root
 doc_check_missing:
 	@cargo doc --no-deps --all-features --workspace
 
-.PHONY: all ax_root build run justrun debug disasm clean
+.PHONY: all ax_root build run justrun justdebugrun debug disasm clean

@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.0)
 
-project(nimbos_user)
-enable_language(C ASM)
-set(CMAKE_OSX_DEPLOYMENT_TARGET "")
+set(CMAKE_SYSTEM_NAME Generic)
+# We are doing a cross compile.
+set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 
 # Toolchain
 set(PREFIX ${ARCH}-linux-musl-)
@@ -26,6 +26,10 @@ set(CMAKE_C_FLAGS           "${CMAKE_C_FLAGS} -static -no-pie -fno-builtin -nost
 set(CMAKE_ASM_FLAGS         ${CMAKE_C_FLAGS})
 set(CMAKE_C_LINK_FLAGS      "${LINK_FLAGS} -nostdlib")  # override default value to get rid of '-Wl,-search_paths_first -Wl,-headerpad_max_install_names'
 set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS)                  # override default value to get rid of '-rdynamic' on Linux
+
+project(nimbos_user)
+enable_language(C ASM)
+set(CMAKE_OSX_DEPLOYMENT_TARGET "")
 
 # Path
 if (${ARCH} STREQUAL riscv32 OR ${ARCH} STREQUAL riscv64)

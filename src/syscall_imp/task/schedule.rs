@@ -1,4 +1,5 @@
-use arceos_posix_api as api;
+use arceos_posix_api::{self as api, ctypes::clockid_t};
+use axerrno::LinuxError;
 
 pub(crate) fn sys_sched_yield() -> i32 {
     api::sys_sched_yield()

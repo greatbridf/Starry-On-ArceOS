@@ -13,12 +13,12 @@ build_dir:
 
 rust: build_dir
 ifeq ($(BUILD_RUST), y)
-	@make -C rust/
+	@make ARCH=$(ARCH) -C rust/
 endif
 
 c: build_dir
 ifeq ($(BUILD_C), y)
-	@make -C c/
+	@make ARCH=$(ARCH) -C c/
 endif
 
 clean:
