@@ -1,11 +1,13 @@
 use alloc::sync::Arc;
-use core::sync::atomic::AtomicU64;
+use core::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use memory_addr::VirtAddr;
 
 use axhal::arch::UspaceContext;
 use axmm::AddrSpace;
 use axsync::Mutex;
 use axtask::{AxTaskRef, TaskExtRef, TaskInner};
+
+static NEXT_PID: AtomicUsize = AtomicUsize::new(1);
 
 /// Task extended data for the monolithic kernel.
 pub struct TaskExt {
@@ -28,13 +30,9 @@ pub struct TaskExt {
 }
 
 impl TaskExt {
-    pub const fn new(
-        uctx: UspaceContext,
-        aspace: Arc<Mutex<AddrSpace>>,
-        break_start: VirtAddr,
-    ) -> Self {
+    pub fn new(uctx: UspaceContext, aspace: Arc<Mutex<AddrSpace>>, break_start: VirtAddr) -> Self {
         Self {
-            proc_id: 233,
+            proc_id: NEXT_PID.fetch_add(1, Ordering::AcqRel),
             uctx,
             clear_child_tid: AtomicU64::new(0),
             aspace,
