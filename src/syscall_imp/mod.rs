@@ -76,6 +76,15 @@ fn do_handle_syscall(tf: &TrapFrame, syscall_num: usize) -> LinuxResult<isize> {
         Sysno::mkdirat => sys_mkdirat(tf.arg0() as _, tf.arg1() as _, tf.arg2() as _) as _,
         Sysno::chdir => sys_chdir(tf.arg0() as _) as _,
         Sysno::getcwd => sys_getcwd(tf.arg0() as _, tf.arg1() as _) as _,
+        Sysno::openat => sys_openat(
+            tf.arg0() as _,
+            tf.arg1() as _,
+            tf.arg2() as _,
+            tf.arg3() as _,
+        ) as _,
+        Sysno::close => sys_close(tf.arg0() as _) as _,
+        Sysno::dup => sys_dup(tf.arg0() as _) as _,
+        Sysno::dup3 => sys_dup3(tf.arg0() as _, tf.arg1() as _, tf.arg2() as _) as _,
         _ => {
             warn!("Unimplemented syscall: {}", syscall_num);
             axtask::exit(LinuxError::ENOSYS as _)
