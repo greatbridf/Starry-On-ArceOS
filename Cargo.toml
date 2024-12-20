@@ -36,6 +36,7 @@ axruntime = { git = "https://github.com/arceos-org/arceos.git", features = [
 arceos_posix_api = { git = "https://github.com/arceos-org/arceos.git", features = [
     "fd",
     "fs",
+    "uspace",
 ] }
 
 [target.'cfg(target_arch = "x86_64")'.dependencies]

@@ -22,11 +22,14 @@ pub(crate) fn sys_brk(new_break: VirtAddr) -> VirtAddr {
         return current_break;
     }
 
+    // TODO: populating mappings are broken in Debug mode under riscv64.
+    //       GenericPTE expects the mapping flags to contain at least one of `R` or `X`
+    //       while the implementation gives `empty()`.
     aspace.map_alloc(
         current_break,
         new_range.size(),
         MappingFlags::READ | MappingFlags::WRITE | MappingFlags::USER,
-        false,
+        true,
     );
 
     *break_pos = new_break;
