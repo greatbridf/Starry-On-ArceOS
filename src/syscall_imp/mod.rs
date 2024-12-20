@@ -3,7 +3,7 @@ mod mm;
 mod task;
 mod time;
 
-use axerrno::LinuxError;
+use axerrno::{LinuxError, LinuxResult};
 use axhal::{
     arch::TrapFrame,
     trap::{register_trap_handler, SYSCALL},
@@ -15,18 +15,6 @@ use self::fs::*;
 use self::mm::*;
 use self::task::*;
 use self::time::*;
-
-#[derive(Clone, Copy)]
-pub(crate) struct PosixError(u32);
-pub(crate) type PosixResult<T> = Result<T, PosixError>;
-
-impl PosixError {
-    const EINVAL: Self = Self(22);
-
-    pub fn as_isize(self) -> isize {
-        -(self.0 as isize)
-    }
-}
 
 /// Macro to generate syscall body
 ///
@@ -50,9 +38,8 @@ macro_rules! syscall_body {
     }};
 }
 
-#[register_trap_handler(SYSCALL)]
-fn handle_syscall(tf: &TrapFrame, syscall_num: usize) -> isize {
-    match Sysno::from(syscall_num as u32) {
+fn do_handle_syscall(tf: &TrapFrame, syscall_num: usize) -> LinuxResult<isize> {
+    Ok(match Sysno::from(syscall_num as u32) {
         Sysno::read => sys_read(tf.arg0() as _, tf.arg1() as _, tf.arg2() as _),
         Sysno::write => sys_write(tf.arg0() as _, tf.arg1() as _, tf.arg2() as _),
         Sysno::mmap => sys_mmap(
@@ -86,9 +73,18 @@ fn handle_syscall(tf: &TrapFrame, syscall_num: usize) -> isize {
             let vaddr = VirtAddr::from_usize(tf.arg0());
             sys_brk(vaddr).as_usize() as isize
         }
+        Sysno::mkdirat => sys_mkdirat(tf.arg0() as _, tf.arg1() as _, tf.arg2() as _) as _,
         _ => {
             warn!("Unimplemented syscall: {}", syscall_num);
             axtask::exit(LinuxError::ENOSYS as _)
         }
+    })
+}
+
+#[register_trap_handler(SYSCALL)]
+fn handle_syscall(tf: &TrapFrame, syscall_num: usize) -> isize {
+    match do_handle_syscall(tf, syscall_num) {
+        Ok(retval) => retval,
+        Err(error) => -error.code() as isize,
     }
 }

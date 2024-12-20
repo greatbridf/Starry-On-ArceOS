@@ -3,8 +3,6 @@ use axhal::paging::MappingFlags;
 use axtask::TaskExtRef;
 use memory_addr::{MemoryAddr, VirtAddr, VirtAddrRange};
 
-use crate::syscall_imp::{PosixError, PosixResult};
-
 pub(crate) fn sys_brk(new_break: VirtAddr) -> VirtAddr {
     let current = axtask::current();
     let task_ext = current.task_ext();
