@@ -1,3 +1,5 @@
+use core::ffi::{c_char, c_ulong};
+
 use arceos_posix_api::{self as api};
 use axtask::{current, TaskExtRef};
 use num_enum::TryFromPrimitive;
@@ -57,6 +59,14 @@ pub(crate) fn sys_set_tid_address(tid_ptd: *const i32) -> isize {
         curr.task_ext().set_clear_child_tid(tid_ptd as _);
         Ok(curr.id().as_u64() as isize)
     })
+}
+
+pub(crate) fn sys_chdir(pathname: *const c_char) -> isize {
+    api::sys_chdir(pathname) as _
+}
+
+pub(crate) fn sys_getcwd(buf: *mut c_char, bufsize: c_ulong) -> isize {
+    api::sys_getcwd(buf, bufsize as usize) as _
 }
 
 #[cfg(target_arch = "x86_64")]

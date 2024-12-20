@@ -1,4 +1,3 @@
-use axerrno::AxResult;
 use axhal::paging::MappingFlags;
 use axtask::TaskExtRef;
 use memory_addr::{MemoryAddr, VirtAddr, VirtAddrRange};
