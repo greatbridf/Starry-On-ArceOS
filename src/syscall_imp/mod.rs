@@ -85,6 +85,26 @@ fn do_handle_syscall(tf: &TrapFrame, syscall_num: usize) -> LinuxResult<isize> {
         Sysno::close => sys_close(tf.arg0() as _) as _,
         Sysno::dup => sys_dup(tf.arg0() as _) as _,
         Sysno::dup3 => sys_dup3(tf.arg0() as _, tf.arg1() as _, tf.arg2() as _) as _,
+        Sysno::clone => {
+            #[cfg(target_arch = "x86_64")]
+            let arg3 = tf.arg3() as _;
+            #[cfg(not(target_arch = "x86_64"))]
+            let arg3 = VirtAddr::from_usize(tf.arg3());
+
+            #[cfg(target_arch = "x86_64")]
+            let arg4 = VirtAddr::from_usize(tf.arg4());
+            #[cfg(not(target_arch = "x86_64"))]
+            let arg4 = tf.arg4() as _;
+
+            sys_clone(
+                tf.arg0() as _,
+                VirtAddr::from_usize(tf.arg1()),
+                tf.arg2() as _,
+                arg3,
+                arg4,
+            ) as _
+        }
+        Sysno::wait4 => tf.arg0() as _,
         _ => {
             warn!("Unimplemented syscall: {}", syscall_num);
             axtask::exit(LinuxError::ENOSYS as _)

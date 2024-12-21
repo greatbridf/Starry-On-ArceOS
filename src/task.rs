@@ -1,4 +1,5 @@
 use alloc::sync::Arc;
+use axerrno::AxResult;
 use core::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use memory_addr::VirtAddr;
 
@@ -53,6 +54,37 @@ impl TaskExt {
 }
 
 axtask::def_task_ext!(TaskExt);
+
+pub fn clone_user_task(task: &AxTaskRef, child_stack: VirtAddr) -> AxResult<AxTaskRef> {
+    let aspace = Arc::new(Mutex::new(task.task_ext().aspace.lock().new_cloned()?));
+
+    let uctx = UspaceContext::new(task.task_ext().uctx.get_ip(), child_stack, 114514);
+
+    let mut new_task_ext = TaskExt::new(uctx, aspace.clone(), task.task_ext().break_start);
+    *new_task_ext.break_pos.get_mut() = *task.task_ext().break_pos.lock();
+
+    let mut new_task = TaskInner::new(
+        || {
+            let curr = axtask::current();
+            let kstack_top = curr.kernel_stack_top().unwrap();
+            info!(
+                "Enter user space: entry={:#x}, ustack={:#x}, kstack={:#x}",
+                curr.task_ext().uctx.get_ip(),
+                curr.task_ext().uctx.get_sp(),
+                kstack_top,
+            );
+            unsafe { curr.task_ext().uctx.enter_uspace(kstack_top) };
+        },
+        "[usertask]".into(),
+        crate::config::KERNEL_STACK_SIZE,
+    );
+    new_task
+        .ctx_mut()
+        .set_page_table_root(aspace.lock().page_table_root());
+    new_task.init_task_ext(new_task_ext);
+
+    Ok(axtask::spawn_task(new_task))
+}
 
 pub fn spawn_user_task(
     aspace: Arc<Mutex<AddrSpace>>,
