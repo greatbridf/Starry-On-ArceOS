@@ -3,7 +3,7 @@ use axerrno::AxResult;
 use core::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use memory_addr::VirtAddr;
 
-use axhal::arch::UspaceContext;
+use axhal::arch::{TrapFrame, UspaceContext};
 use axmm::AddrSpace;
 use axsync::Mutex;
 use axtask::{AxTaskRef, TaskExtRef, TaskInner};
@@ -58,7 +58,13 @@ axtask::def_task_ext!(TaskExt);
 pub fn clone_user_task(task: &AxTaskRef, child_stack: VirtAddr) -> AxResult<AxTaskRef> {
     let aspace = Arc::new(Mutex::new(task.task_ext().aspace.lock().new_cloned()?));
 
-    let uctx = UspaceContext::new(task.task_ext().uctx.get_ip(), child_stack, 114514);
+    let trap_stack = task.kernel_stack_top().unwrap() - size_of::<TrapFrame>();
+    let trap_frame = unsafe { &*(trap_stack.as_usize() as *const TrapFrame) };
+    let mut uctx = UspaceContext::from(trap_frame);
+
+    uctx.set_ip(uctx.get_ip() + 4); // Next instruction
+    uctx.set_retval(0); // Child process returns 0
+    uctx.set_sp(child_stack.as_usize());
 
     let mut new_task_ext = TaskExt::new(uctx, aspace.clone(), task.task_ext().break_start);
     *new_task_ext.break_pos.get_mut() = *task.task_ext().break_pos.lock();
